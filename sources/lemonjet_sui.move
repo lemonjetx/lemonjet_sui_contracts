@@ -43,7 +43,7 @@ entry fun play(r: &random::Random, stake: Coin<SUI>, coef: u64, house_data: &mut
     address: ctx.sender(),
     payout,
     random_number,
-    x: (threshold * (100 - HOUSE_EDGE)) / 100 / random_number,
+    x: (THRESHOLD * (100 - HOUSE_EDGE)) / 100 / random_number,
   });
 
 }
