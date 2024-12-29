@@ -8,9 +8,10 @@ use sui::pay;
 use sui::url::Url;
 
 const BASIS_POINT_SCALE: u128 = 10000;
-const EXIT_FEE_BP: u128 = 50;
+const EXIT_FEE_BP: u128 = 60;
 
 public struct VAULT has drop {}
+public struct Shares<phantom T> has drop {}
 
 public struct DepositEvent has copy, drop {
     asset_amount_in: u64,
@@ -25,8 +26,8 @@ public struct RedeemEvent has copy, drop {
 public struct Vault<phantom T> has key, store {
     id: UID,
     asset_pool: Balance<T>,
-    shares_treasury_cap: TreasuryCap<VAULT>,
-    fees: Balance<T>,
+    shares_treasury_cap: TreasuryCap<Shares<T>>,
+    fee_pool: Balance<T>,
 }
 
 public struct AdminCap has key {
@@ -45,7 +46,6 @@ fun init(otw: VAULT, ctx: &mut TxContext) {
 
 public fun initialize_vault<T>(
     _: &AdminCap,
-    otw: VAULT,
     initial_pool: Coin<T>,
     decimals: u8,
     symbol: vector<u8>,
@@ -54,6 +54,9 @@ public fun initialize_vault<T>(
     icon_url: Option<Url>,
     ctx: &mut TxContext,
 ) {
+
+    let otw = Shares<T> {};
+
     let (treasury_cap, coin_metadata) = coin::create_currency(
         otw,
         decimals,
@@ -68,7 +71,7 @@ public fun initialize_vault<T>(
         id: object::new(ctx),
         asset_pool: initial_pool.into_balance(),
         shares_treasury_cap: treasury_cap,
-        fees: balance::zero<T>(),
+        fee_pool: balance::zero<T>(),
     };
 
     transfer::share_object(vault);
@@ -108,10 +111,13 @@ public(package) fun payout<T>(self: &mut Vault<T>, amount: u64, ctx: &mut TxCont
 }
 
 public(package) fun top_up<T>(self: &mut Vault<T>, coin: Coin<T>) {
-    coin::put(&mut self.asset_pool, coin);
+    let mut balance = coin.into_balance();
+    let value = balance.value() as u128;
+    self.fee_pool.join(balance.split((value * 20 / BASIS_POINT_SCALE) as u64));
+    self.asset_pool.join(balance);
 }
 
-public fun deposit<T>(vault: &mut Vault<T>, assets: Coin<T>, ctx: &mut TxContext): Coin<VAULT> {
+public fun deposit<T>(vault: &mut Vault<T>, assets: Coin<T>, ctx: &mut TxContext): Coin<Shares<T>> {
     let deposit_amount = assets.value();
     let shares_amount = vault.assets_to_shares(deposit_amount);
     vault.asset_pool.join(assets.into_balance());
@@ -120,12 +126,12 @@ public fun deposit<T>(vault: &mut Vault<T>, assets: Coin<T>, ctx: &mut TxContext
     shares
 }
 
-public fun redeem<T>(vault: &mut Vault<T>, shares: Coin<VAULT>, ctx: &mut TxContext): Coin<T> {
+public fun redeem<T>(vault: &mut Vault<T>, shares: Coin<Shares<T>>, ctx: &mut TxContext): Coin<T> {
     let shares_amount = shares.value();
     let assets_amount = vault.shares_to_assets(shares_amount);
-    let fee = calc_exit_fee(assets_amount);
-    let mut assets = vault.asset_pool.split(assets_amount);
-    vault.fees.join(assets.split(fee));
+    let (in_fee_pool, remains_in_asset_pool) = calc_exit_fee(assets_amount);
+    let mut assets = vault.asset_pool.split(assets_amount - remains_in_asset_pool);
+    vault.fee_pool.join(assets.split(in_fee_pool));
     vault.shares_treasury_cap.burn(shares);
     event::emit(RedeemEvent {
         shares_amount_in: shares_amount,
@@ -135,10 +141,13 @@ public fun redeem<T>(vault: &mut Vault<T>, shares: Coin<VAULT>, ctx: &mut TxCont
 }
 
 public fun withdraw_fee<T>(_: &AdminCap, vault: &mut Vault<T>, ctx: &mut TxContext) {
-    pay::keep(vault.fees.withdraw_all().into_coin(ctx), ctx)
+    pay::keep(vault.fee_pool.withdraw_all().into_coin(ctx), ctx)
 }
 
-fun calc_exit_fee(assets: u64): u64 {
-    ((assets as u128) * EXIT_FEE_BP  / BASIS_POINT_SCALE) as u64
+fun calc_exit_fee(assets: u64): (u64, u64) {
+    let total_fee = ((assets as u128) * EXIT_FEE_BP  / BASIS_POINT_SCALE);
+    let in_fee_pool = (total_fee / 6);
+    let remains_in_asset_pool = total_fee - in_fee_pool;
+    (in_fee_pool as u64, remains_in_asset_pool as u64)
 }
 }
