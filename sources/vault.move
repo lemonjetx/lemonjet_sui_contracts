@@ -1,17 +1,22 @@
 module lemonjet::vault {
 
-use sui::balance::{Self, Balance};
-use sui::coin::{Self, Coin, TreasuryCap};
+use sui::balance::{ Self, Balance, Supply };
+use sui::coin::{ Coin };
 use sui::event;
 use sui::package;
 use sui::pay;
-use sui::url::Url;
 
 const BASIS_POINT_SCALE: u128 = 10000;
 const EXIT_FEE_BP: u128 = 60;
 
 public struct VAULT has drop {}
-public struct Shares<phantom T> has drop {}
+
+public struct SharesType<phantom T> has drop {}
+
+public struct Shares<phantom T> has key {
+id: UID,
+balance: Balance<SharesType<T>>
+}
 
 public struct DepositEvent has copy, drop {
     asset_amount_in: u64,
@@ -26,13 +31,26 @@ public struct RedeemEvent has copy, drop {
 public struct Vault<phantom T> has key, store {
     id: UID,
     asset_pool: Balance<T>,
-    shares_treasury_cap: TreasuryCap<Shares<T>>,
+    shares_supply: Supply<SharesType<T>>,
     fee_pool: Balance<T>,
 }
+
 
 public struct AdminCap has key {
     id: UID,
 }
+
+
+fun mint<T>(self: &mut Vault<T>, value: u64, ctx: &mut TxContext ): Shares<T> {
+    Shares { id: object::new(ctx), balance:self.shares_supply.increase_supply(value)}
+}
+
+fun burn<T>(self: &mut Vault<T>, shares: Shares<T>) {
+    let Shares {id, balance} = shares;
+    id.delete();
+    self.shares_supply.decrease_supply(balance);
+}
+
 
 fun init(otw: VAULT, ctx: &mut TxContext) {
     package::claim_and_keep(otw, ctx);
@@ -45,37 +63,17 @@ fun init(otw: VAULT, ctx: &mut TxContext) {
 }
 
 public fun initialize_vault<T>(
-    _: &AdminCap,
-    initial_pool: Coin<T>,
-    decimals: u8,
-    symbol: vector<u8>,
-    name: vector<u8>,
-    description: vector<u8>,
-    icon_url: Option<Url>,
     ctx: &mut TxContext,
 ) {
 
-    let otw = Shares<T> {};
-
-    let (treasury_cap, coin_metadata) = coin::create_currency(
-        otw,
-        decimals,
-        symbol,
-        name,
-        description,
-        icon_url,
-        ctx,
-    );
-
     let vault = Vault<T> {
         id: object::new(ctx),
-        asset_pool: initial_pool.into_balance(),
-        shares_treasury_cap: treasury_cap,
+        asset_pool: balance::zero<T>(),
+        shares_supply: balance::create_supply(SharesType<T> {}),
         fee_pool: balance::zero<T>(),
     };
 
     transfer::share_object(vault);
-    transfer::public_freeze_object(coin_metadata);
 }
 
 fun total_assets<T>(self: &Vault<T>): u64 {
@@ -83,7 +81,7 @@ fun total_assets<T>(self: &Vault<T>): u64 {
 }
 
 fun total_shares<T>(self: &Vault<T>): u64 {
-    self.shares_treasury_cap.total_supply()
+    self.shares_supply.supply_value()
 }
 
 fun assets_to_shares<T>(self: &Vault<T>, assets: u64): u64 {
@@ -106,8 +104,8 @@ fun shares_to_assets<T>(self: &Vault<T>, shares: u64): u64 {
     assets as u64
 }
 
-public(package) fun payout<T>(self: &mut Vault<T>, amount: u64, ctx: &mut TxContext) {
-    pay::keep(self.asset_pool.split(amount).into_coin(ctx), ctx)
+public(package) fun payout<T>(self: &mut Vault<T>, value: u64, ctx: &mut TxContext) {
+    pay::keep(self.asset_pool.split(value).into_coin(ctx), ctx)
 }
 
 public(package) fun top_up<T>(self: &mut Vault<T>, coin: Coin<T>) {
@@ -117,24 +115,24 @@ public(package) fun top_up<T>(self: &mut Vault<T>, coin: Coin<T>) {
     self.asset_pool.join(balance);
 }
 
-public fun deposit<T>(vault: &mut Vault<T>, assets: Coin<T>, ctx: &mut TxContext): Coin<Shares<T>> {
-    let deposit_amount = assets.value();
-    let shares_amount = vault.assets_to_shares(deposit_amount);
+public fun deposit<T>(vault: &mut Vault<T>, assets: Coin<T>, ctx: &mut TxContext): Shares<T> {
+    let deposit_value = assets.value();
+    let shares_value = vault.assets_to_shares(deposit_value);
     vault.asset_pool.join(assets.into_balance());
-    let shares = vault.shares_treasury_cap.mint(shares_amount, ctx);
-    event::emit(DepositEvent { asset_amount_in: deposit_amount, shares_amount_out: shares_amount });
+    let shares = vault.mint(shares_value, ctx);
+    event::emit(DepositEvent { asset_amount_in: deposit_value, shares_amount_out: shares_value });
     shares
 }
 
-public fun redeem<T>(vault: &mut Vault<T>, shares: Coin<Shares<T>>, ctx: &mut TxContext): Coin<T> {
-    let shares_amount = shares.value();
-    let assets_amount = vault.shares_to_assets(shares_amount);
-    let (in_fee_pool, remains_in_asset_pool) = calc_exit_fee(assets_amount);
-    let mut assets = vault.asset_pool.split(assets_amount - remains_in_asset_pool);
+public fun redeem<T>(vault: &mut Vault<T>, shares: Shares<T>, ctx: &mut TxContext): Coin<T> {
+    let shares_value = shares.balance.value();
+    let assets_value = vault.shares_to_assets(shares_value);
+    let (in_fee_pool, remains_in_asset_pool) = calc_exit_fee(assets_value);
+    let mut assets = vault.asset_pool.split(assets_value - remains_in_asset_pool);
     vault.fee_pool.join(assets.split(in_fee_pool));
-    vault.shares_treasury_cap.burn(shares);
+    vault.burn(shares);
     event::emit(RedeemEvent {
-        shares_amount_in: shares_amount,
+        shares_amount_in: shares_value,
         asset_amount_out: assets.value(),
     });
     assets.into_coin(ctx)

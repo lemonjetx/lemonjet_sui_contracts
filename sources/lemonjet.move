@@ -33,9 +33,9 @@ entry fun play<T>(
     let threshold = calc_threshold(coef);
     let random_number = generate_random_number(random, ctx);
     let payout = if (is_player_won(random_number, threshold)) {
-        let amount = calc_winner_payout(stake_amount, coef);
-        vault.payout(amount, ctx);
-        amount
+        let value = calc_winner_payout(stake_amount, coef);
+        vault.payout(value, ctx);
+       value 
     } else { 0 };
 
     let outcome = Outcome {
