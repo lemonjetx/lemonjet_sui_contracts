@@ -2,6 +2,7 @@ module lemonjet::vault {
 
 use sui::balance::{ Self, Balance, Supply };
 use sui::coin::{ Coin };
+use lemonjet::shares::{Shares, SharesType, Self, create_shares_type};
 use sui::event;
 use sui::package;
 use sui::pay;
@@ -10,13 +11,6 @@ const BASIS_POINT_SCALE: u128 = 10000;
 const EXIT_FEE_BP: u128 = 60;
 
 public struct VAULT has drop {}
-
-public struct SharesType<phantom T> has drop {}
-
-public struct Shares<phantom T> has key {
-id: UID,
-balance: Balance<SharesType<T>>
-}
 
 public struct DepositEvent has copy, drop {
     asset_amount_in: u64,
@@ -42,13 +36,11 @@ public struct AdminCap has key {
 
 
 fun mint<T>(self: &mut Vault<T>, value: u64, ctx: &mut TxContext ): Shares<T> {
-    Shares { id: object::new(ctx), balance:self.shares_supply.increase_supply(value)}
+    shares::from_balance(self.shares_supply.increase_supply(value), ctx)
 }
 
 fun burn<T>(self: &mut Vault<T>, shares: Shares<T>) {
-    let Shares {id, balance} = shares;
-    id.delete();
-    self.shares_supply.decrease_supply(balance);
+    self.shares_supply.decrease_supply(shares.into_balance());
 }
 
 
@@ -69,7 +61,7 @@ public fun initialize_vault<T>(
     let vault = Vault<T> {
         id: object::new(ctx),
         asset_pool: balance::zero<T>(),
-        shares_supply: balance::create_supply(SharesType<T> {}),
+        shares_supply: balance::create_supply(create_shares_type()),
         fee_pool: balance::zero<T>(),
     };
 
@@ -125,7 +117,7 @@ public fun deposit<T>(vault: &mut Vault<T>, assets: Coin<T>, ctx: &mut TxContext
 }
 
 public fun redeem<T>(vault: &mut Vault<T>, shares: Shares<T>, ctx: &mut TxContext): Coin<T> {
-    let shares_value = shares.balance.value();
+    let shares_value = shares.value();
     let assets_value = vault.shares_to_assets(shares_value);
     let (in_fee_pool, remains_in_asset_pool) = calc_exit_fee(assets_value);
     let mut assets = vault.asset_pool.split(assets_value - remains_in_asset_pool);
