@@ -10,6 +10,7 @@ const THRESHOLD: u64 = 10_000_000 * (100 - HOUSE_EDGE) / 100;
 
 const EInvalidAmount: u64 = 1;
 const EInvalidCoef: u64 = 2;
+const EPotentialWinExceeded: u64 = 3;
 
 public struct Outcome has copy, drop {
     address: address,
@@ -25,15 +26,16 @@ entry fun play<T>(
     vault: &mut Vault<T>,
     ctx: &mut TxContext,
 ): Outcome {
-    let stake_amount = stake.value();
-    assert!(stake_amount >= 1000, EInvalidAmount);
+    let stake_value = stake.value();
+    assert!(stake_value >= 1000, EInvalidAmount);
     assert!(coef >= 101 && coef <= 500000, EInvalidCoef);
-
+    let potential_payout = calc_winner_payout(stake_value, coef);
+    assert!(potential_payout <= vault.max_payout(), EPotentialWinExceeded);
     vault.top_up(stake);
     let threshold = calc_threshold(coef);
     let random_number = generate_random_number(random, ctx);
     let payout = if (is_player_won(random_number, threshold)) {
-        let value = calc_winner_payout(stake_amount, coef);
+        let value = calc_winner_payout(stake_value, coef);
         vault.payout(value, ctx);
        value 
     } else { 0 };

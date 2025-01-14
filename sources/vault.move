@@ -8,6 +8,7 @@ use sui::pay;
 
 const BASIS_POINT_SCALE: u128 = 10000;
 const EXIT_FEE_BP: u128 = 60;
+const GOLDEN_RATIO_PERCENTAGE: u128 = 1618;
 
 public struct VAULT has drop {}
 
@@ -70,6 +71,10 @@ fun total_assets<T>(self: &Vault<T>): u64 {
 
 fun total_shares<T>(self: &Vault<T>): u64 {
     self.shares_treasury.total_supply() 
+}
+
+public(package) fun max_payout<T>(self: &Vault<T>): u64 {
+    ((self.asset_pool.value() as u128) * GOLDEN_RATIO_PERCENTAGE / 100000) as u64
 }
 
 fun assets_to_shares<T>(self: &Vault<T>, assets: u64): u64 {
