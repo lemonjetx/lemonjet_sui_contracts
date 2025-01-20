@@ -1,5 +1,6 @@
-module lemonjet::lemonjet {
+module lemonjet::lemonjet;
 
+use lemonjet::player::Player;
 use lemonjet::vault::Vault;
 use sui::coin::Coin;
 use sui::event::emit;
@@ -21,6 +22,7 @@ public struct Outcome has copy, drop {
 
 entry fun play<T>(
     random: &Random,
+    player: &Player,
     stake: Coin<T>,
     coef: u64,
     vault: &mut Vault<T>,
@@ -29,15 +31,23 @@ entry fun play<T>(
     let stake_value = stake.value();
     assert!(stake_value >= 1000, EInvalidAmount);
     assert!(coef >= 101 && coef <= 500000, EInvalidCoef);
+
     let potential_payout = calc_winner_payout(stake_value, coef);
     assert!(potential_payout <= vault.max_payout(), EPotentialWinExceeded);
-    vault.top_up(stake);
+
+    let fee = stake.value() / 100;
+    vault.mint_reward_shares_and_deposit(fee * 20 / 100, @0x0); // admin shares
+
+    player.referrer().do_ref!(|addr| vault.mint_reward_shares_and_deposit(fee * 30 / 100, *addr)); // referrer shares
+
+    vault.add(stake);
+
     let threshold = calc_threshold(coef);
     let random_number = generate_random_number(random, ctx);
     let payout = if (is_player_won(random_number, threshold)) {
         let value = calc_winner_payout(stake_value, coef);
         vault.payout(value, ctx);
-       value 
+        value
     } else { 0 };
 
     let outcome = Outcome {
@@ -70,5 +80,4 @@ fun is_player_won(random_number: u64, threshold: u64): bool {
 
 fun calc_x(random_number: u64): u64 {
     THRESHOLD / random_number
-}
 }
