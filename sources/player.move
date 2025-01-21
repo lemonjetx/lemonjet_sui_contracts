@@ -38,8 +38,8 @@ public fun create<T>(
 ) {
     referrer.do!(|addr| {
         assert!(addr != ctx.sender());
-        if (!vault.player_reward_shares_balance_exists(addr)) {
-            vault.init_player_reward_shares_balance(addr)
+        if (!vault.contains_reward_balance(addr)) {
+            vault.init_reward_balance(addr)
         }
     });
 
