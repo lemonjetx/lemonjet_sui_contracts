@@ -3,6 +3,7 @@ module lemonjet::player;
 use lemonjet::vault::Vault;
 use sui::table::{Self, Table};
 use sui::transfer::{transfer, share_object};
+use std::ascii::{String};
 
 public struct Player has key {
     id: UID,
@@ -21,14 +22,14 @@ fun init(ctx: &mut TxContext) {
     });
 }
 
-// public struct ReferrerNames has key, store {
-//     id: UID,
-//     value: Table<String, address>,
-// }
+public struct NameRegistry has key {
+    id: UID,
+    value: Table<String, address>,
+}
 
-// public fun setName(referrer_names: &mut ReferrerNames, name: String, ctx: &mut TxContext) {
-//     referrer_names.value.add(name, ctx.sender());
-// }
+public fun register_name(name_registry: &mut NameRegistry, name: String, ctx: &mut TxContext) {
+    name_registry.value.add(name, ctx.sender());
+}
 
 public fun create<T>(
     player_registry: &mut PlayerRegistry,
@@ -54,24 +55,20 @@ public fun create<T>(
     );
 }
 
-// public fun register_by_name(
-//     player_registry: &mut PlayerRegistry,
-//     referrer_names: &ReferrerNames,
-//     referrer_name: String,
-//     ctx: &mut TxContext,
-// ) {
-//     let referrer = referrer_names.value[referrer_name];
-//     assert!(referrer != ctx.sender());
-//     player_registry.has_registered_table.add(ctx.sender(), true);
-//     transfer(
-//         Player {
-//             id: object::new(ctx),
-//             referrer: option::some(referrer),
-//         },
-//         ctx.sender(),
-//     );
-// }
+public fun create_by_name<T>(
+    name_registry: &NameRegistry,
+    player_registry: &mut PlayerRegistry,
+    vault: &mut Vault<T>,
+    referrer_name: String,
+    ctx: &mut TxContext,
+) {
+
+    let referrer = name_registry.value[referrer_name];
+    create(player_registry, vault, option::some(referrer), ctx)
+
+}
 
 public fun referrer(self: &Player): &Option<address> {
     &self.referrer
 }
+
