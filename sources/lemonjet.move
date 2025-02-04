@@ -30,15 +30,15 @@ entry fun play<T>(
 ): Outcome {
     let stake_value = stake.value();
     assert!(stake_value >= 1000, EInvalidAmount);
-    assert!(coef >= 101 && coef <= 500000, EInvalidCoef);
+    assert!(coef >= 1_01 && coef <= 5000_00, EInvalidCoef);
 
     let potential_payout = calc_winner_payout(stake_value, coef);
     assert!(potential_payout <= vault.max_payout(), EPotentialWinExceeded);
 
     let fee = stake.value() / 100;
-    vault.mint_reward_shares_and_deposit(fee * 20 / 100, @0x0); // admin shares
+    vault.mint_and_deposit(fee * 20 / 100, @0x0); // admin shares
 
-    player.referrer().do_ref!(|addr| vault.mint_reward_shares_and_deposit(fee * 30 / 100, *addr)); // referrer shares
+    player.referrer().do_ref!(|addr| vault.mint_and_deposit(fee * 30 / 100, *addr)); // referrer shares
 
     vault.add(stake);
 

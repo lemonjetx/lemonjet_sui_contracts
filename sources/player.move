@@ -15,20 +15,27 @@ public struct PlayerRegistry has key {
     has_registered: Table<address, bool>,
 }
 
+public struct NameRegistry has key {
+    id: UID,
+    name_to_address: Table<String, address>,
+}
+
 fun init(ctx: &mut TxContext) {
+
     share_object(PlayerRegistry {
         id: object::new(ctx),
         has_registered: table::new(ctx),
     });
+
+    share_object(NameRegistry {
+        id: object::new(ctx),
+        name_to_address: table::new(ctx)
+    });
 }
 
-public struct NameRegistry has key {
-    id: UID,
-    value: Table<String, address>,
-}
 
 public fun register_name(name_registry: &mut NameRegistry, name: String, ctx: &mut TxContext) {
-    name_registry.value.add(name, ctx.sender());
+    name_registry.name_to_address.add(name, ctx.sender());
 }
 
 public fun create<T>(
@@ -63,7 +70,7 @@ public fun create_by_name<T>(
     ctx: &mut TxContext,
 ) {
 
-    let referrer = name_registry.value[referrer_name];
+    let referrer = name_registry.name_to_address[referrer_name];
     create(player_registry, vault, option::some(referrer), ctx)
 
 }
