@@ -38,7 +38,7 @@ entry fun play<T>(
     let fee = stake.value() / 100;
     vault.mint_and_deposit(fee * 20 / 100, @0x0); // admin shares
 
-    player.referrer().do_ref!(|addr| vault.mint_and_deposit(fee * 30 / 100, *addr)); // referrer shares
+    player.referrer().do_ref!(|addr| vault.mint_and_deposit(fee * 30 / 100, *addr));
 
     vault.add(stake);
 

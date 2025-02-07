@@ -1,9 +1,8 @@
 module lemonjet::player;
 
-use lemonjet::vault::Vault;
+use std::ascii::String;
 use sui::table::{Self, Table};
 use sui::transfer::{transfer, share_object};
-use std::ascii::{String};
 
 public struct Player has key {
     id: UID,
@@ -21,7 +20,6 @@ public struct NameRegistry has key {
 }
 
 fun init(ctx: &mut TxContext) {
-
     share_object(PlayerRegistry {
         id: object::new(ctx),
         has_registered: table::new(ctx),
@@ -29,27 +27,20 @@ fun init(ctx: &mut TxContext) {
 
     share_object(NameRegistry {
         id: object::new(ctx),
-        name_to_address: table::new(ctx)
+        name_to_address: table::new(ctx),
     });
 }
-
 
 public fun register_name(name_registry: &mut NameRegistry, name: String, ctx: &mut TxContext) {
     name_registry.name_to_address.add(name, ctx.sender());
 }
 
-public fun create<T>(
+public fun create(
     player_registry: &mut PlayerRegistry,
-    vault: &mut Vault<T>,
     referrer: Option<address>,
     ctx: &mut TxContext,
 ) {
-    referrer.do!(|addr| {
-        assert!(addr != ctx.sender());
-        if (!vault.contains_reward_balance(addr)) {
-            vault.init_reward_balance(addr)
-        }
-    });
+    referrer.do!(|addr| assert!(addr != ctx.sender()));
 
     player_registry.has_registered.add(ctx.sender(), true);
 
@@ -62,20 +53,16 @@ public fun create<T>(
     );
 }
 
-public fun create_by_name<T>(
+public fun create_by_name(
     name_registry: &NameRegistry,
     player_registry: &mut PlayerRegistry,
-    vault: &mut Vault<T>,
     referrer_name: String,
     ctx: &mut TxContext,
 ) {
-
     let referrer = name_registry.name_to_address[referrer_name];
-    create(player_registry, vault, option::some(referrer), ctx)
-
+    create(player_registry, option::some(referrer), ctx)
 }
 
 public fun referrer(self: &Player): &Option<address> {
     &self.referrer
 }
-

@@ -16,7 +16,7 @@ public struct VaultShare<phantom T> has drop {}
 public struct Vault<phantom T> has key, store {
     id: UID,
     liquidity: Balance<T>,
-    rewards: Table<address, Balance<VaultShare<T>>>, 
+    rewards: Table<address, Balance<VaultShare<T>>>,
     shares_supply: Supply<VaultShare<T>>,
 }
 
@@ -35,7 +35,6 @@ public struct RedeemEvent has copy, drop {
 }
 
 fun init(ctx: &mut TxContext) {
-
     let admin_cap = AdminCap {
         id: object::new(ctx),
     };
@@ -43,9 +42,11 @@ fun init(ctx: &mut TxContext) {
     transfer::transfer(admin_cap, ctx.sender());
 }
 
-
-
-public fun deposit<T>(vault: &mut Vault<T>, assets: Coin<T>, ctx: &mut TxContext): Coin<VaultShare<T>> {
+public fun deposit<T>(
+    vault: &mut Vault<T>,
+    assets: Coin<T>,
+    ctx: &mut TxContext,
+): Coin<VaultShare<T>> {
     let assets_amount_in = assets.value();
     let shares_amount_out = vault.assets_to_shares(assets_amount_in);
     vault.liquidity.join(assets.into_balance());
@@ -53,11 +54,13 @@ public fun deposit<T>(vault: &mut Vault<T>, assets: Coin<T>, ctx: &mut TxContext
     coin::from_balance(vault.shares_supply.increase_supply(shares_amount_out), ctx)
 }
 
-public fun redeem<T>(vault: &mut Vault<T>, mut shares: Coin<VaultShare<T>>, ctx: &mut TxContext): Coin<T> {
+public fun redeem<T>(
+    vault: &mut Vault<T>,
+    mut shares: Coin<VaultShare<T>>,
+    ctx: &mut TxContext,
+): Coin<T> {
     let shares_value_in = shares.value();
-    vault
-        .rewards[@0x0]
-        .join(shares.balance_mut().split(calc_admin_dividends(shares_value_in)));
+    vault.rewards[@0x0].join(shares.balance_mut().split(calc_admin_dividends(shares_value_in)));
 
     let assets_value = vault.shares_to_assets(shares.value());
     let assets = vault.liquidity.split(assets_value - calc_exit_fee(assets_value));
@@ -86,7 +89,6 @@ fun total_shares<T>(self: &Vault<T>): u64 {
     self.shares_supply.supply_value()
 }
 
-
 public fun create<T>(_: &AdminCap, ctx: &mut TxContext) {
     let mut rewards = table::new<address, Balance<VaultShare<T>>>(ctx);
     rewards.add(@0x0, balance::zero());
@@ -95,7 +97,7 @@ public fun create<T>(_: &AdminCap, ctx: &mut TxContext) {
         id: object::new(ctx),
         liquidity: balance::zero(),
         rewards: rewards,
-        shares_supply: balance::create_supply(VaultShare {})
+        shares_supply: balance::create_supply(VaultShare {}),
     });
 }
 
@@ -120,11 +122,10 @@ public(package) fun max_payout<T>(self: &Vault<T>): u64 {
     ((self.liquidity.value() as u128) * GOLDEN_RATIO_PERCENTAGE / 100000) as u64
 }
 
-public(package) fun mint_and_deposit<T>(
-    self: &mut Vault<T>,
-    value: u64,
-    recipient: address,
-) {
+public(package) fun mint_and_deposit<T>(self: &mut Vault<T>, value: u64, recipient: address) {
+    if (!self.has_reward(recipient)) {
+        self.init_reward(recipient);
+    };
     (&mut self.rewards[recipient]).join(self.shares_supply.increase_supply(value));
 }
 
@@ -136,18 +137,22 @@ public(package) fun add<T>(self: &mut Vault<T>, coin: Coin<T>) {
     self.liquidity.join(coin.into_balance());
 }
 
-public(package) fun contains_reward_balance<T>(self: &Vault<T>, key: address): bool {
+public(package) fun has_reward<T>(self: &Vault<T>, key: address): bool {
     self.rewards.contains(key)
 }
 
-public(package) fun init_reward_balance<T>(self: &mut Vault<T>, key: address) {
+public(package) fun init_reward<T>(self: &mut Vault<T>, key: address) {
     self.rewards.add(key, balance::zero())
 }
 
-fun claim_balance<T>(self: &mut Vault<T>, owner: address, mut value: Option<u64>): Balance<VaultShare<T>> {
+fun claim_balance<T>(
+    self: &mut Vault<T>,
+    owner: address,
+    mut value: Option<u64>,
+): Balance<VaultShare<T>> {
     let balance = &mut self.rewards[owner];
 
-        (if (value.is_some()) {
+    (if (value.is_some()) {
             balance.split(value.extract())
         } else {
             balance.withdraw_all()
