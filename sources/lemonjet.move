@@ -1,7 +1,9 @@
 module lemonjet::lemonjet;
 
 use lemonjet::player::Player;
+use lemonjet::point::{Self, PlayerVolume, LatestTotalVolume};
 use lemonjet::vault::Vault;
+use sui::clock::Clock;
 use sui::coin::Coin;
 use sui::event::emit;
 use sui::random::{new_generator, generate_u64_in_range, Random};
@@ -12,6 +14,7 @@ const THRESHOLD: u64 = 10_000_000 * (100 - HOUSE_EDGE) / 100;
 const EInvalidAmount: u64 = 1;
 const EInvalidCoef: u64 = 2;
 const EPotentialWinExceeded: u64 = 3;
+const ELatestTotalVolumeMustNotBeCompleted: u64 = 2;
 
 public struct Outcome has copy, drop {
     address: address,
@@ -59,6 +62,22 @@ entry fun play<T>(
 
     emit(outcome);
     outcome
+}
+
+entry fun play_and_earn_points<T>(
+    random: &Random,
+    clock: &Clock,
+    player: &Player,
+    stake: Coin<T>,
+    coef: u64,
+    player_volume: &mut PlayerVolume<T>,
+    total_volume: &mut LatestTotalVolume<T>,
+    vault: &mut Vault<T>,
+    ctx: &mut TxContext,
+): Outcome {
+    assert!(!point::is_completed(total_volume, clock), ELatestTotalVolumeMustNotBeCompleted);
+    point::add(&stake, total_volume, player_volume);
+    play(random, player, stake, coef, vault, ctx)
 }
 
 fun calc_threshold(coef: u64): u64 {
