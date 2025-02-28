@@ -98,7 +98,7 @@ public fun create_player_volume<T>(cycle: u64, ctx: &mut TxContext): PlayerVolum
 public fun create_total_volume<T>(
     _: &AdminCap,
     clock: &Clock,
-    config: Config<T>,
+    config: &Config<T>,
     ctx: &mut TxContext,
 ): LatestTotalVolume<T> {
     LatestTotalVolume {
