@@ -1,7 +1,7 @@
 module lemonjet::lemonjet;
 
 use lemonjet::player::Player;
-use lemonjet::point::{Self, PlayerVolume, LatestTotalVolume};
+use lemonjet::points::{Self, PlayerVolume, LatestTotalVolume};
 use lemonjet::vault::Vault;
 use sui::clock::Clock;
 use sui::coin::Coin;
@@ -75,8 +75,8 @@ entry fun play_and_earn_points<T>(
     vault: &mut Vault<T>,
     ctx: &mut TxContext,
 ): Outcome {
-    assert!(!point::is_completed(total_volume, clock), ELatestTotalVolumeMustNotBeCompleted);
-    point::add(&stake, total_volume, player_volume);
+    assert!(!points::is_completed(total_volume, clock), ELatestTotalVolumeMustNotBeCompleted);
+    points::add(&stake, total_volume, player_volume);
     play(random, player, stake, coef, vault, ctx)
 }
 

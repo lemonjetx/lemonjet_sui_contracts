@@ -1,4 +1,4 @@
-module lemonjet::point;
+module lemonjet::points;
 
 use sui::clock::Clock;
 use sui::coin::{Self, TreasuryCap, Coin};
@@ -7,11 +7,11 @@ use sui::table::{Self, Table};
 const EMismatchCycle: u64 = 1;
 const ELatestTotalVolumeMustBeCompleted: u64 = 2;
 
-public struct POINT has drop {}
+public struct POINTS has drop {}
 
-public struct PointData has key {
+public struct PointsData has key {
     id: UID,
-    treasury: TreasuryCap<POINT>,
+    treasury: TreasuryCap<POINTS>,
 }
 
 public struct AdminCap has key {
@@ -48,7 +48,7 @@ public struct Rate<phantom T> has store {
     volume: u64,
 }
 
-fun init(otw: POINT, ctx: &mut TxContext) {
+fun init(otw: POINTS, ctx: &mut TxContext) {
     let (treasury_cap, deny_cap, metadata) = coin::create_regulated_currency_v2(
         otw,
         9,
@@ -61,7 +61,7 @@ fun init(otw: POINT, ctx: &mut TxContext) {
     );
     transfer::public_freeze_object(metadata);
     transfer::public_transfer(deny_cap, ctx.sender());
-    transfer::share_object(PointData {
+    transfer::share_object(PointsData {
         id: object::new(ctx),
         treasury: treasury_cap,
     });
@@ -123,9 +123,9 @@ public fun is_completed<T>(total_volume: &LatestTotalVolume<T>, clock: &Clock): 
 public fun claim<T>(
     volumes: vector<PlayerVolume<T>>,
     rate_registry: &RateRegistry<T>,
-    point_data: &mut PointData,
+    point_data: &mut PointsData,
     ctx: &mut TxContext,
-): Coin<POINT> {
+): Coin<POINTS> {
     point_data
         .treasury
         .mint(volumes.fold!(0, |acc, PlayerVolume { id, cycle, value: player_volume }| {
@@ -155,10 +155,10 @@ public fun create_config<T>(
 
 public fun mint(
     _: &AdminCap,
-    point_data: &mut PointData,
+    point_data: &mut PointsData,
     value: u64,
     ctx: &mut TxContext,
-): Coin<POINT> {
+): Coin<POINTS> {
     point_data.treasury.mint(value, ctx)
 }
 
