@@ -61,6 +61,7 @@ fun init(otw: POINTS, ctx: &mut TxContext) {
     );
     transfer::public_freeze_object(metadata);
     transfer::public_transfer(deny_cap, ctx.sender());
+    transfer::transfer(AdminCap { id: object::new(ctx) }, ctx.sender());
     transfer::share_object(PointsData {
         id: object::new(ctx),
         treasury: treasury_cap,
@@ -100,20 +101,20 @@ public fun create_total_volume<T>(
     clock: &Clock,
     config: &Config<T>,
     ctx: &mut TxContext,
-): LatestTotalVolume<T> {
-    LatestTotalVolume {
+) {
+    transfer::share_object(LatestTotalVolume<T> {
         id: object::new(ctx),
         cycle: 1,
         value: 0,
         completion_time_ms: clock.timestamp_ms() + config.interval_ms,
-    }
+    })
 }
 
-public fun create_rate_registry<T>(_: &AdminCap, ctx: &mut TxContext): RateRegistry<T> {
-    RateRegistry {
+public fun create_rate_registry<T>(_: &AdminCap, ctx: &mut TxContext) {
+    transfer::share_object(RateRegistry<T> {
         id: object::new(ctx),
         value: table::new(ctx),
-    }
+    })
 }
 
 public fun is_completed<T>(total_volume: &LatestTotalVolume<T>, clock: &Clock): bool {
