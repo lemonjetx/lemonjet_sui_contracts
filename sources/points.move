@@ -18,7 +18,7 @@ public struct AdminCap has key {
     id: UID,
 }
 
-public struct PlayerVolume<phantom T> has key {
+public struct PlayerVolume<phantom T> has key, store {
     id: UID,
     cycle: u64,
     value: u64,
