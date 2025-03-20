@@ -1,5 +1,6 @@
 module lemonjet::points;
 
+use lemonjet::player::Player;
 use sui::clock::Clock;
 use sui::coin::{Self, TreasuryCap, Coin};
 use sui::table::{Self, Table};
@@ -41,6 +42,11 @@ public struct RateRegistry<phantom T> has key {
     id: UID,
     // cycle -> rate
     value: Table<u64, Rate<T>>,
+}
+
+public struct VolumeRewardRegistry<phantom T> has key {
+    id: UID,
+    rewards: Table<address, Table<u64, u64>>,
 }
 
 public struct Rate<phantom T> has store {
@@ -119,6 +125,11 @@ public fun new<T>(
     transfer::share_object(RateRegistry<T> {
         id: object::new(ctx),
         value: table::new(ctx),
+    });
+
+    transfer::share_object(VolumeRewardRegistry<T> {
+        id: object::new(ctx),
+        rewards: table::new(ctx),
     })
 }
 
@@ -142,6 +153,27 @@ public fun claim<T>(
         }), ctx)
 }
 
+public fun claim_ref_volume<T>(
+    cycles: vector<u64>,
+    reward_registry: &mut VolumeRewardRegistry<T>,
+    ctx: &mut TxContext,
+): vector<Volume<T>> {
+    let volume_table = &mut reward_registry.rewards[ctx.sender()];
+    cycles.map!(|cycle| {
+        let value = volume_table[cycle];
+        volume_table.remove(cycle);
+        Volume<T> {
+            id: object::new(ctx),
+            cycle,
+            value,
+        }
+    })
+}
+
+public fun rewards<T>(self: &VolumeRewardRegistry<T>, owner: address): &Table<u64, u64> {
+    &self.rewards[owner]
+}
+
 public fun mint(
     _: &AdminCap,
     point_data: &mut PointsData,
@@ -159,4 +191,36 @@ public(package) fun add<T>(
     assert!(total_volume.cycle == player_volume.cycle, EMismatchCycle);
     total_volume.value = total_volume.value + stake.value();
     player_volume.value = player_volume.value + stake.value();
+}
+
+public(package) fun mint_and_deposit<T>(
+    self: &mut VolumeRewardRegistry<T>,
+    cycle: u64,
+    value: u64,
+    recipient: address,
+    ctx: &mut TxContext,
+) {
+    if (!self.rewards.contains(recipient)) {
+        let mut table = table::new(ctx);
+        table.add(cycle, value);
+        self.rewards.add(recipient, table)
+    } else if (!self.rewards[recipient].contains(cycle)) {
+        self.rewards[recipient].add(cycle, value);
+    } else {
+        let volume = self.rewards.borrow_mut(recipient).borrow_mut(cycle);
+        *volume = *volume + value;
+    }
+}
+
+public(package) fun add_ref<T>(
+    stake: &Coin<T>,
+    player: &Player,
+    total_volume: &mut TotalVolume<T>,
+    rewards_registry: &mut VolumeRewardRegistry<T>,
+    ctx: &mut TxContext,
+) {
+    player.referrer().do_ref!(|referrer| {
+        let reward = (stake.value() as u128 * 10 / 100) as u64;
+        rewards_registry.mint_and_deposit(total_volume.cycle, reward, *referrer, ctx);
+    })
 }

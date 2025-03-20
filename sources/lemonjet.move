@@ -1,7 +1,7 @@
 module lemonjet::lemonjet;
 
 use lemonjet::player::Player;
-use lemonjet::points::{Self, Volume, TotalVolume};
+use lemonjet::points::{Self, Volume, TotalVolume, VolumeRewardRegistry};
 use lemonjet::vault::Vault;
 use sui::clock::Clock;
 use sui::coin::Coin;
@@ -14,7 +14,8 @@ const THRESHOLD: u64 = 10_000_000 * (100 - HOUSE_EDGE) / 100;
 const EInvalidAmount: u64 = 1;
 const EInvalidCoef: u64 = 2;
 const EPotentialWinExceeded: u64 = 3;
-const ETotalVolumeMustNotBeCompleted: u64 = 2;
+const ETotalVolumeMustNotBeCompleted: u64 = 4;
+const EUsePlayFunWithReferrer: u64 = 5;
 
 public struct Outcome has copy, drop {
     address: address,
@@ -75,9 +76,36 @@ entry fun play_and_earn_points<T>(
     vault: &mut Vault<T>,
     ctx: &mut TxContext,
 ): Outcome {
+    assert!(player.referrer().is_none(), EUsePlayFunWithReferrer);
     assert!(!points::is_completed(total_volume, clock), ETotalVolumeMustNotBeCompleted);
     points::add(&stake, total_volume, player_volume);
     play(random, player, stake, coef, vault, ctx)
+}
+
+entry fun play_and_earn_points_with_ref<T>(
+    random: &Random,
+    clock: &Clock,
+    player: &Player,
+    stake: Coin<T>,
+    coef: u64,
+    player_volume: &mut Volume<T>,
+    total_volume: &mut TotalVolume<T>,
+    vault: &mut Vault<T>,
+    rewards_registry: &mut VolumeRewardRegistry<T>,
+    ctx: &mut TxContext,
+): Outcome {
+    points::add_ref(&stake, player, total_volume, rewards_registry, ctx);
+    play_and_earn_points(
+        random,
+        clock,
+        player,
+        stake,
+        coef,
+        player_volume,
+        total_volume,
+        vault,
+        ctx,
+    )
 }
 
 fun calc_threshold(coef: u64): u64 {
