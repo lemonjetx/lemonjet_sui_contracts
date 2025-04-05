@@ -24,7 +24,7 @@ public struct Outcome has copy, drop {
     x: u64,
 }
 
-entry fun play<T>(
+fun play<T>(
     random: &Random,
     player: &Player,
     stake: Coin<T>,
@@ -65,7 +65,23 @@ entry fun play<T>(
     outcome
 }
 
-entry fun play_and_earn_points<T>(
+fun play_and_earn_points<T>(
+    random: &Random,
+    clock: &Clock,
+    player: &Player,
+    stake: Coin<T>,
+    coef: u64,
+    player_volume: &mut Volume<T>,
+    total_volume: &mut TotalVolume<T>,
+    vault: &mut Vault<T>,
+    ctx: &mut TxContext,
+): Outcome {
+    assert!(!points::is_completed(total_volume, clock), ETotalVolumeMustNotBeCompleted);
+    points::add(&stake, total_volume, player_volume);
+    play(random, player, stake, coef, vault, ctx)
+}
+
+entry fun play_and_earn_points_without_ref<T>(
     random: &Random,
     clock: &Clock,
     player: &Player,
@@ -77,9 +93,17 @@ entry fun play_and_earn_points<T>(
     ctx: &mut TxContext,
 ): Outcome {
     assert!(player.referrer().is_none(), EUsePlayFunWithReferrer);
-    assert!(!points::is_completed(total_volume, clock), ETotalVolumeMustNotBeCompleted);
-    points::add(&stake, total_volume, player_volume);
-    play(random, player, stake, coef, vault, ctx)
+    play_and_earn_points(
+        random,
+        clock,
+        player,
+        stake,
+        coef,
+        player_volume,
+        total_volume,
+        vault,
+        ctx,
+    )
 }
 
 entry fun play_and_earn_points_with_ref<T>(
