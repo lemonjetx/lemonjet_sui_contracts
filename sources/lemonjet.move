@@ -81,7 +81,7 @@ fun play_and_earn_points<T>(
     play(random, player, stake, coef, vault, ctx)
 }
 
-entry fun play_and_earn_points_without_ref<T>(
+entry fun playAndEarnPointsWithoutRef<T>(
     random: &Random,
     clock: &Clock,
     player: &Player,
@@ -106,7 +106,7 @@ entry fun play_and_earn_points_without_ref<T>(
     )
 }
 
-entry fun play_and_earn_points_with_ref<T>(
+entry fun playAndEarnPointsWithRef<T>(
     random: &Random,
     clock: &Clock,
     player: &Player,
