@@ -227,3 +227,31 @@ public(package) fun add_ref<T>(
         rewards_registry.mint_and_deposit(total_volume.cycle, reward, *referrer, ctx);
     })
 }
+
+#[test]
+public fun test_claim_ref_volume() {
+    use std::debug;
+    let mut ctx = tx_context::dummy();
+    let dummy_address = @0xCAFE;
+    let sender = ctx.sender();
+
+    let mut reward_registry = VolumeRewardRegistry<sui::sui::SUI> {
+        id: object::new(&mut ctx),
+        rewards: sui::table::new(&mut ctx),
+    };
+
+    // reward_registry.mint_and_deposit(1, 5000, sender, &mut ctx);
+
+    let volumes = claim_ref_volume(&mut reward_registry, &mut ctx);
+
+    debug::print(&reward_registry.rewards[sender]);
+    debug::print(&volumes);
+
+    assert!(vector::length(&volumes) == 1);
+    assert!(reward_registry.rewards[sender].is_empty());
+    transfer::transfer(reward_registry, dummy_address);
+
+    volumes.destroy!(|v| {
+        transfer::transfer(v, dummy_address);
+    })
+}
