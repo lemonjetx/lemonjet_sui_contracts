@@ -4,6 +4,9 @@ use std::ascii::String;
 use sui::table::{Self, Table};
 use sui::transfer::{transfer, share_object};
 
+const ESelfReferring: u64 = 1;
+const EReferrerNotRegistered: u64 = 2;
+
 public struct Player has key {
     id: UID,
     referrer: Option<address>,
@@ -40,7 +43,10 @@ public fun create(
     referrer: Option<address>,
     ctx: &mut TxContext,
 ) {
-    referrer.do!(|addr| assert!(addr != ctx.sender()));
+    referrer.do!(|addr| {
+        assert!(addr != ctx.sender(), ESelfReferring);
+        assert!(player_registry.has_registered.contains(addr), EReferrerNotRegistered);
+    });
 
     player_registry.has_registered.add(ctx.sender(), true);
 
