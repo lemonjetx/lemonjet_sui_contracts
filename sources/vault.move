@@ -1,27 +1,29 @@
 module lemonjet::vault;
 
+use lemonjet::admin::AdminCap;
 use sui::balance::{Self, Balance, Supply};
 use sui::coin::{Self, Coin};
 use sui::event;
 use sui::pay;
 use sui::table::{Self, Table};
 
+const EWrongVersion: u64 = 2;
+
 const BASIS_POINT_SCALE: u128 = 10000;
 const EXIT_FEE_BP: u128 = 50;
 const ADMIN_DIVIDENDS_BP: u128 = 10;
 const GOLDEN_RATIO_PERCENTAGE: u128 = 1618;
 
+const VERSION: u64 = 1;
+
 public struct VaultShare<phantom T> has drop {}
 
 public struct Vault<phantom T> has key, store {
     id: UID,
+    version: u64,
     liquidity: Balance<T>,
     rewards: Table<address, Balance<VaultShare<T>>>,
     shares_supply: Supply<VaultShare<T>>,
-}
-
-public struct AdminCap has key {
-    id: UID,
 }
 
 public struct DepositEvent has copy, drop {
@@ -34,19 +36,12 @@ public struct RedeemEvent has copy, drop {
     asset_value_out: u64,
 }
 
-fun init(ctx: &mut TxContext) {
-    let admin_cap = AdminCap {
-        id: object::new(ctx),
-    };
-
-    transfer::transfer(admin_cap, ctx.sender());
-}
-
 public fun deposit<T>(
     vault: &mut Vault<T>,
     assets: Coin<T>,
     ctx: &mut TxContext,
 ): Coin<VaultShare<T>> {
+    assert!(vault.version == VERSION, EWrongVersion);
     let assets_amount_in = assets.value();
     let shares_amount_out = vault.assets_to_shares(assets_amount_in);
     vault.liquidity.join(assets.into_balance());
@@ -59,6 +54,7 @@ public fun redeem<T>(
     mut shares: Coin<VaultShare<T>>,
     ctx: &mut TxContext,
 ): Coin<T> {
+    assert!(vault.version == VERSION, EWrongVersion);
     let shares_value_in = shares.value();
     vault.rewards[@0x0].join(shares.balance_mut().split(calc_admin_dividends(shares_value_in)));
 
@@ -74,10 +70,12 @@ public fun redeem<T>(
 }
 
 public fun claim<T>(vault: &mut Vault<T>, value: u64, ctx: &mut TxContext): Coin<VaultShare<T>> {
+    assert!(vault.version == VERSION, EWrongVersion);
     vault.claim_balance(ctx.sender(), option::some(value)).into_coin(ctx)
 }
 
 public fun claim_all<T>(vault: &mut Vault<T>, ctx: &mut TxContext): Coin<VaultShare<T>> {
+    assert!(vault.version == VERSION, EWrongVersion);
     vault.claim_balance(ctx.sender(), option::none()).into_coin(ctx)
 }
 
@@ -95,8 +93,9 @@ public fun create<T>(_: &AdminCap, ctx: &mut TxContext) {
 
     transfer::share_object(Vault {
         id: object::new(ctx),
+        version: VERSION,
         liquidity: balance::zero(),
-        rewards: rewards,
+        rewards,
         shares_supply: balance::create_supply(VaultShare {}),
     });
 }
@@ -107,6 +106,7 @@ public fun admin_claim<T>(
     value: u64,
     ctx: &mut TxContext,
 ): Coin<VaultShare<T>> {
+    assert!(vault.version == VERSION, EWrongVersion);
     vault.claim_balance(@0x0, option::some(value)).into_coin(ctx)
 }
 
@@ -115,6 +115,7 @@ public fun admin_claim_all<T>(
     vault: &mut Vault<T>,
     ctx: &mut TxContext,
 ): Coin<VaultShare<T>> {
+    assert!(vault.version == VERSION, EWrongVersion);
     vault.claim_balance(@0x0, option::none()).into_coin(ctx)
 }
 
@@ -185,4 +186,9 @@ fun calc_exit_fee(assets: u64): u64 {
 
 fun calc_admin_dividends(shares: u64): u64 {
     ((shares as u128) * ADMIN_DIVIDENDS_BP / BASIS_POINT_SCALE) as u64
+}
+
+entry fun migrate_vault<T>(vault: &mut Vault<T>, _: &AdminCap) {
+    assert!(vault.version < VERSION, EWrongVersion);
+    vault.version = VERSION;
 }
