@@ -2,7 +2,7 @@
 
 [move]
 version = 3
-manifest_digest = "141038B43C201206B74F03446A45D4A480002D75266E36B0838ED75883990409"
+manifest_digest = "E4593222821B1D799E8FEC37ADC4202ACC6547E624F22FC38B3664297CFA1871"
 deps_digest = "F8BBB0CCB2491CA29A3DF03D6F92277A4F3574266507ACD77214D37ECA3F3082"
 dependencies = [
   { id = "Sui", name = "Sui" },
@@ -10,25 +10,37 @@ dependencies = [
 
 [[move.package]]
 id = "MoveStdlib"
-source = { git = "https://github.com/MystenLabs/sui.git", rev = "framework/testnet", subdir = "crates/sui-framework/packages/move-stdlib" }
+source = { git = "https://github.com/MystenLabs/sui.git", rev = "framework/devnet", subdir = "crates/sui-framework/packages/move-stdlib" }
 
 [[move.package]]
 id = "Sui"
-source = { git = "https://github.com/MystenLabs/sui.git", rev = "framework/testnet", subdir = "crates/sui-framework/packages/sui-framework" }
+source = { git = "https://github.com/MystenLabs/sui.git", rev = "framework/devnet", subdir = "crates/sui-framework/packages/sui-framework" }
 
 dependencies = [
   { id = "MoveStdlib", name = "MoveStdlib" },
 ]
 
 [move.toolchain-version]
-compiler-version = "1.39.3"
+compiler-version = "1.53.2"
 edition = "2024.beta"
 flavor = "sui"
 
 [env]
 
 [env.devnet]
-chain-id = "af8ca69b"
-original-published-id = "0x9ae7a9b6fc9862ddc75547e38ed8f1d1eef710a11157a2ccdcf3efabb0e10f08"
-latest-published-id = "0x9ae7a9b6fc9862ddc75547e38ed8f1d1eef710a11157a2ccdcf3efabb0e10f08"
+chain-id = "c2bef0b2"
+original-published-id = "0xcfe0e2de7b961359c0724d7ab507c92396144e5185cbabcaa089a5bd52da5007"
+latest-published-id = "0x38ae94a91ed835f27583937b3e46017cc5440692d6c8a5681887283615a72996"
+published-version = "2"
+
+[env.testnet]
+chain-id = "4c78adac"
+original-published-id = "0xbaf1b0ffe0dc44f827003c90eef4c9122d11ae71c03e7c310c25dcb9ad2cc4ef"
+latest-published-id = "0xbaf1b0ffe0dc44f827003c90eef4c9122d11ae71c03e7c310c25dcb9ad2cc4ef"
+published-version = "1"
+
+[env.mainnet]
+chain-id = "35834a8a"
+original-published-id = "0x1e6a8e5f9c271f50cc62151ae995344f42304827ace685649a19747e088893b0"
+latest-published-id = "0x1e6a8e5f9c271f50cc62151ae995344f42304827ace685649a19747e088893b0"
 published-version = "1"

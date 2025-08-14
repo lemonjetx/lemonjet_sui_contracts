@@ -1,6 +1,9 @@
-module lemonjet::lemonjet {
+module lemonjet::lemonjet;
 
+use lemonjet::player::Player;
+use lemonjet::points::{Self, Volume, TotalVolume, VolumeRewardRegistry};
 use lemonjet::vault::Vault;
+use sui::clock::Clock;
 use sui::coin::Coin;
 use sui::event::emit;
 use sui::random::{new_generator, generate_u64_in_range, Random};
@@ -10,6 +13,9 @@ const THRESHOLD: u64 = 10_000_000 * (100 - HOUSE_EDGE) / 100;
 
 const EInvalidAmount: u64 = 1;
 const EInvalidCoef: u64 = 2;
+const EPotentialWinExceeded: u64 = 3;
+const ETotalVolumeMustNotBeCompleted: u64 = 4;
+const EUsePlayFunWithReferrer: u64 = 5;
 
 public struct Outcome has copy, drop {
     address: address,
@@ -18,24 +24,34 @@ public struct Outcome has copy, drop {
     x: u64,
 }
 
-entry fun play<T>(
+fun play<T>(
     random: &Random,
+    player: &Player,
     stake: Coin<T>,
     coef: u64,
     vault: &mut Vault<T>,
     ctx: &mut TxContext,
 ): Outcome {
-    let stake_amount = stake.value();
-    assert!(stake_amount >= 1000, EInvalidAmount);
-    assert!(coef >= 101 && coef <= 500000, EInvalidCoef);
+    let stake_value = stake.value();
+    assert!(stake_value >= 1000, EInvalidAmount);
+    assert!(coef >= 1_01 && coef <= 5000_00, EInvalidCoef);
 
-    vault.top_up(stake);
+    let potential_payout = calc_winner_payout(stake_value, coef);
+    assert!(potential_payout <= vault.max_payout(), EPotentialWinExceeded);
+
+    let fee = stake.value() / 100;
+    vault.mint_and_deposit(fee * 20 / 100, @0x0); // admin shares
+
+    player.referrer().do_ref!(|addr| vault.mint_and_deposit(fee * 30 / 100, *addr));
+
+    vault.add(stake);
+
     let threshold = calc_threshold(coef);
     let random_number = generate_random_number(random, ctx);
     let payout = if (is_player_won(random_number, threshold)) {
-        let value = calc_winner_payout(stake_amount, coef);
+        let value = calc_winner_payout(stake_value, coef);
         vault.payout(value, ctx);
-       value 
+        value
     } else { 0 };
 
     let outcome = Outcome {
@@ -47,6 +63,73 @@ entry fun play<T>(
 
     emit(outcome);
     outcome
+}
+
+fun play_and_earn_points<T>(
+    random: &Random,
+    clock: &Clock,
+    player: &Player,
+    stake: Coin<T>,
+    coef: u64,
+    player_volume: &mut Volume<T>,
+    total_volume: &mut TotalVolume<T>,
+    vault: &mut Vault<T>,
+    ctx: &mut TxContext,
+): Outcome {
+    assert!(!points::is_completed(total_volume, clock), ETotalVolumeMustNotBeCompleted);
+    points::add(&stake, total_volume, player_volume);
+    play(random, player, stake, coef, vault, ctx)
+}
+
+entry fun playAndEarnPointsWithoutRef<T>(
+    random: &Random,
+    clock: &Clock,
+    player: &Player,
+    stake: Coin<T>,
+    coef: u64,
+    player_volume: &mut Volume<T>,
+    total_volume: &mut TotalVolume<T>,
+    vault: &mut Vault<T>,
+    ctx: &mut TxContext,
+): Outcome {
+    assert!(player.referrer().is_none(), EUsePlayFunWithReferrer);
+    play_and_earn_points(
+        random,
+        clock,
+        player,
+        stake,
+        coef,
+        player_volume,
+        total_volume,
+        vault,
+        ctx,
+    )
+}
+
+entry fun playAndEarnPointsWithRef<T>(
+    random: &Random,
+    clock: &Clock,
+    player: &Player,
+    stake: Coin<T>,
+    coef: u64,
+    player_volume: &mut Volume<T>,
+    total_volume: &mut TotalVolume<T>,
+    vault: &mut Vault<T>,
+    rewards_registry: &mut VolumeRewardRegistry<T>,
+    ctx: &mut TxContext,
+): Outcome {
+    points::add_ref(&stake, player, total_volume, rewards_registry, ctx);
+    play_and_earn_points(
+        random,
+        clock,
+        player,
+        stake,
+        coef,
+        player_volume,
+        total_volume,
+        vault,
+        ctx,
+    )
 }
 
 fun calc_threshold(coef: u64): u64 {
@@ -68,5 +151,4 @@ fun is_player_won(random_number: u64, threshold: u64): bool {
 
 fun calc_x(random_number: u64): u64 {
     THRESHOLD / random_number
-}
 }
