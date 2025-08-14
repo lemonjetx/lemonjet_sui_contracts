@@ -188,7 +188,7 @@ fun calc_admin_dividends(shares: u64): u64 {
     ((shares as u128) * ADMIN_DIVIDENDS_BP / BASIS_POINT_SCALE) as u64
 }
 
-entry fun migrate_vault<T>(vault: &mut Vault<T>, _: &AdminCap) {
-    assert!(vault.version < VERSION, EWrongVersion);
-    vault.version = VERSION;
-}
+// entry fun migrate_vault<T>(vault: &mut Vault<T>, _: &AdminCap) {
+//     assert!(vault.version < VERSION, EWrongVersion);
+//     vault.version = VERSION;
+// }
