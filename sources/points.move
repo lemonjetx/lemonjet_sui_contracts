@@ -112,7 +112,7 @@ public fun create_volume<T>(cycle: u64, ctx: &mut TxContext): Volume<T> {
     }
 }
 
-public fun new<T>(
+public fun setup<T>(
     _: &AdminCap,
     clock: &Clock,
     point_capacity: u64,
